@@ -8,6 +8,7 @@ from .create_dataset import (
     create_dataset,
     create_ood_split,
     create_unpaired_attributes,
+    create_dataset_biased,
     unpaired_attributes_command,
 )
 from .odd_one_out import create_odd_one_out_dataset
@@ -52,7 +53,6 @@ def cli():
     pass
 
 
-cli.add_command(create_dataset)
 cli.add_command(alignment_group)
 cli.add_command(unpaired_attributes_command)
 cli.add_command(create_ood_split)

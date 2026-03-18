@@ -13,6 +13,7 @@ from tqdm import tqdm
 from transformers import BertModel, BertTokenizer
 
 from simple_shapes_dataset.cli.graph import build_dependency_graph
+import cv2
 
 
 @dataclass
@@ -211,6 +212,57 @@ def generate_dataset(
         colors_hls=colors_hls,
         unpaired=unpaired,
     )
+
+def generate_dataset_biased(
+    n_samples: int,  # Ex: {0: 100, 1: 200}
+    class_configs: dict,                # Ex: {0: {'bias_rate': 0.8, 'fixed_color_hls': np.array([0,128,255])}}
+    min_scale: int,
+    max_scale: int,
+    min_lightness: int,
+    max_lightness: int,
+    imsize: int,
+    classes: np.ndarray | None = None,
+) -> Dataset:
+    if classes is None:
+        classes = generate_class(n_samples)
+
+    colors_rgb, colors_hls = generate_color(n_samples, min_lightness, max_lightness)
+
+    for cls_id, config in class_configs.items():
+        bias_rate = config.get('bias_rate')
+        fixed_hls = config.get('fixed_color_hls')
+
+        if fixed_hls is not None and bias_rate > 0:
+            indices = np.where(classes == cls_id)[0]
+            
+            mask = np.random.rand(len(indices)) < bias_rate
+            chosen_indices = indices[mask]
+
+            colors_hls[chosen_indices] = fixed_hls.astype(int)
+            
+            if len(chosen_indices) > 0:
+                patch_hls = fixed_hls.reshape(1, 1, 3).astype(np.uint8)
+                patch_rgb = cv2.cvtColor(patch_hls, cv2.COLOR_HLS2RGB)[0, 0]
+                colors_rgb[chosen_indices] = patch_rgb.astype(int)
+
+    sizes = generate_scale(n_samples, min_scale, max_scale)
+    locations = generate_location(n_samples, max_scale, imsize)
+    rotation = generate_rotation(n_samples)
+    unpaired = generate_unpaired_attr(n_samples)
+
+    shuffled_indices = np.random.permutation(n_samples)
+
+    return Dataset(
+        classes=classes[shuffled_indices],
+        locations=locations[shuffled_indices],
+        sizes=sizes[shuffled_indices],
+        rotations=rotation[shuffled_indices],
+        colors=colors_rgb[shuffled_indices],
+        colors_hls=colors_hls[shuffled_indices],
+        unpaired=unpaired[shuffled_indices],
+    )
+
+
 
 
 def save_dataset(path_root: Path, dataset: Dataset, imsize: int) -> None:
