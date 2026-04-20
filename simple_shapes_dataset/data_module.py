@@ -11,7 +11,7 @@ from torchvision.transforms import Compose, ToTensor
 from simple_shapes_dataset.dataset import RepeatedDataset, SimpleShapesDataset
 from simple_shapes_dataset.domain import DataDomain, DomainDesc
 from simple_shapes_dataset.domain_alignment import get_aligned_datasets
-from simple_shapes_dataset.pre_process import NormalizeAttributes, attribute_to_tensor
+from simple_shapes_dataset.pre_process import NormalizeAttributes, attribute_to_tensor, cat_to_tensor
 
 DatasetT = SimpleShapesDataset | Subset
 
@@ -129,6 +129,13 @@ class SimpleShapesDataModule(LightningDataModule):
 
             if domain == "v" and self._use_default_transforms:
                 domain_transforms.append(ToTensor())
+
+            if domain == "cat" and self._use_default_transforms:
+                domain_transforms.extend(
+                    [
+                        cat_to_tensor,
+                    ]
+                )
 
             if domain in self.additional_transforms:
                 domain_transforms.extend(self.additional_transforms[domain])
@@ -250,7 +257,7 @@ class SimpleShapesDataModule(LightningDataModule):
             assert ood_datasets is not None
             datasets = ood_datasets
 
-        collate_fn = self._collate_fn or default_collate
+        collate_fn = self._collate_fn
 
         return {
             domain: collate_fn([dataset[k] for k in range(amount)])
