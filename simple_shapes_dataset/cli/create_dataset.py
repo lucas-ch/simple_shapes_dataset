@@ -14,6 +14,7 @@ from simple_shapes_dataset.version import __version__
 
 from .utils import (
     generate_dataset,
+    generate_dataset_biased,
     load_labels,
     save_bert_latents,
     save_dataset,
@@ -212,6 +213,116 @@ def create_dataset(
             torch.device("cuda" if torch.cuda.is_available() else "cpu"),
             compute_statistics=(split == "train"),
         )
+
+    create_unpaired_attributes(seed, dataset_location)
+
+    with open(dataset_location / "version.txt", "w") as version_file:
+        version_file.write(__version__)
+
+def create_dataset_biased(
+    seed: int,
+    img_size: int,
+    output_path: str,
+    num_train_examples: int,
+    num_val_examples: int,
+    num_test_examples: int,
+    min_scale: int,
+    max_scale: int,
+    min_lightness: int,
+    max_lightness: int,
+    max_train_size: int | None,
+    domain_alignment: list[tuple[str, float]],
+    biased: bool = False,
+    class_configs: dict = None
+) -> None:
+    dataset_location = Path(output_path)
+    dataset_location.mkdir(exist_ok=True)
+
+    np.random.seed(seed)
+
+    if biased: 
+        train_labels = generate_dataset_biased(
+            num_train_examples,
+            class_configs,
+            min_scale,
+            max_scale,
+            min_lightness,
+            max_lightness,
+            img_size,
+        )
+        val_labels = generate_dataset_biased(
+            num_val_examples,
+            class_configs,
+            min_scale,
+            max_scale,
+            min_lightness,
+            max_lightness,
+            img_size,
+        )
+
+    else: 
+        train_labels = generate_dataset(
+            num_train_examples,
+            min_scale,
+            max_scale,
+            min_lightness,
+            max_lightness,
+            img_size,
+        )
+        val_labels = generate_dataset(
+            num_val_examples,
+            min_scale,
+            max_scale,
+            min_lightness,
+            max_lightness,
+            img_size,
+        )
+    
+    test_labels = generate_dataset(
+        num_test_examples,
+        min_scale,
+        max_scale,
+        min_lightness,
+        max_lightness,
+        img_size,
+    )
+
+    print("Save labels...")
+    save_labels(dataset_location / "train_labels.npy", train_labels)
+    save_labels(dataset_location / "val_labels.npy", val_labels)
+    save_labels(dataset_location / "test_labels.npy", test_labels)
+
+    create_domain_split(seed, dataset_location, domain_alignment, max_train_size)
+
+    print("Saving training set...")
+    (dataset_location / "train").mkdir(exist_ok=True)
+    save_dataset(dataset_location / "train", train_labels, img_size)
+    print("Saving validation set...")
+    (dataset_location / "val").mkdir(exist_ok=True)
+    save_dataset(dataset_location / "val", val_labels, img_size)
+    print("Saving test set...")
+    (dataset_location / "test").mkdir(exist_ok=True)
+    save_dataset(dataset_location / "test", test_labels, img_size)
+
+    print("Saving captions...")
+    for split in ["train", "val", "test"]:
+        labels = np.load(str(dataset_location / f"{split}_labels.npy"))
+        captions = []
+        choices = []
+        for k in tqdm(range(labels.shape[0]), total=labels.shape[0]):
+            caption, choice = composer(
+                {
+                    "shape": int(labels[k][0]),
+                    "rotation": labels[k][4],
+                    "color": (labels[k][5], labels[k][6], labels[k][7]),
+                    "size": labels[k][3],
+                    "location": (labels[k][1], labels[k][2]),
+                }
+            )
+            captions.append(caption)
+            choices.append(choice)
+        np.save(str(dataset_location / f"{split}_captions.npy"), captions)
+        np.save(str(dataset_location / f"{split}_caption_choices.npy"), choices)
 
     create_unpaired_attributes(seed, dataset_location)
 

@@ -31,6 +31,8 @@ class DomainType(Enum):
     attr = DomainDesc("attr", "attr")
     raw_text = DomainDesc("t", "raw_text")  # raw text representations (str)
     t = DomainDesc("t", "t")  # loads BERT representations of the raw text
+    cat = DomainDesc("cat", "cat")
+    color = DomainDesc("color", "color")
 
 
 # TODO: Consider handling CPU usage
@@ -177,6 +179,23 @@ class SimpleShapesPretrainedVisual(DataDomain):
             x = self.latents[index]
         return x
 
+class Cat(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+
+    category: torch.Tensor
+
+class Color(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+
+    color_r: torch.Tensor
+    color_g: torch.Tensor
+    color_b: torch.Tensor
 
 class Attribute(NamedTuple):
     """
@@ -253,6 +272,172 @@ class SimpleShapesAttributes(DataDomain):
             color_g=label[6] / 255,
             color_b=label[7] / 255,
             unpaired=unpaired,
+        )
+
+        if self.transform is not None:
+            return self.transform(item)
+        return item
+
+class SimpleShapesAttributes(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        assert split in ("train", "val", "test"), "Invalid split"
+
+        self.dataset_path = Path(dataset_path).resolve()
+        self.split = split
+        self.labels: torch.Tensor = torch.from_numpy(
+            np.load(self.dataset_path / f"{split}_labels.npy")
+        )
+        self.transform = transform
+
+        default_args = AttributesAdditionalArgs(n_unpaired=0)
+        self.additional_args = additional_args or default_args
+        self.dataset_size = self.labels.size(0)
+
+        self.unpaired = None
+        if self.additional_args["n_unpaired"] >= 1:
+            if not (self.dataset_path / f"{split}_unpaired.npy").exists():
+                raise ValueError(
+                    "Asking for an unpaired attribute, "
+                    "but there is no unpaired label file."
+                )
+            self.unpaired = torch.from_numpy(
+                np.load(self.dataset_path / f"{split}_unpaired.npy")[
+                    :, 2 : 2 + self.additional_args["n_unpaired"]
+                ]
+            ).float()
+
+    def __len__(self) -> int:
+        return self.dataset_size
+
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            An Attribute named tuple at the given index.
+        """
+        label = self.labels[index]
+        unpaired = self.unpaired[index] if self.unpaired is not None else None
+        item = Attribute(
+            category=label[0].long(),
+            x=label[1],
+            y=label[2],
+            size=label[3],
+            rotation=label[4],
+            color_r=label[5] / 255,
+            color_g=label[6] / 255,
+            color_b=label[7] / 255,
+            unpaired=unpaired,
+        )
+
+        if self.transform is not None:
+            return self.transform(item)
+        return item
+
+class SimpleShapesColor(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        assert split in ("train", "val", "test"), "Invalid split"
+
+        self.dataset_path = Path(dataset_path).resolve()
+        self.split = split
+        self.labels: torch.Tensor = torch.from_numpy(
+            np.load(self.dataset_path / f"{split}_labels.npy")
+        )
+        self.transform = transform
+
+        default_args = AttributesAdditionalArgs(n_unpaired=0)
+        self.additional_args = additional_args or default_args
+        self.dataset_size = self.labels.size(0)
+
+        self.unpaired = None
+        if self.additional_args["n_unpaired"] >= 1:
+            if not (self.dataset_path / f"{split}_unpaired.npy").exists():
+                raise ValueError(
+                    "Asking for an unpaired attribute, "
+                    "but there is no unpaired label file."
+                )
+            self.unpaired = torch.from_numpy(
+                np.load(self.dataset_path / f"{split}_unpaired.npy")[
+                    :, 2 : 2 + self.additional_args["n_unpaired"]
+                ]
+            ).float()
+
+    def __len__(self) -> int:
+        return self.dataset_size
+
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            An Attribute named tuple at the given index.
+        """
+        label = self.labels[index]
+        unpaired = self.unpaired[index] if self.unpaired is not None else None
+        item = Color(
+            color_r=label[5] / 255,
+            color_g=label[6] / 255,
+            color_b=label[7] / 255,
+        )
+
+        if self.transform is not None:
+            return self.transform(item)
+        return item
+
+class SimpleShapesCat(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        assert split in ("train", "val", "test"), "Invalid split"
+
+        self.dataset_path = Path(dataset_path).resolve()
+        self.split = split
+        self.labels: torch.Tensor = torch.from_numpy(
+            np.load(self.dataset_path / f"{split}_labels.npy")
+        )
+        self.transform = transform
+
+        default_args = AttributesAdditionalArgs(n_unpaired=0)
+        self.additional_args = additional_args or default_args
+        self.dataset_size = self.labels.size(0)
+
+        self.unpaired = None
+        if self.additional_args["n_unpaired"] >= 1:
+            if not (self.dataset_path / f"{split}_unpaired.npy").exists():
+                raise ValueError(
+                    "Asking for an unpaired attribute, "
+                    "but there is no unpaired label file."
+                )
+            self.unpaired = torch.from_numpy(
+                np.load(self.dataset_path / f"{split}_unpaired.npy")[
+                    :, 2 : 2 + self.additional_args["n_unpaired"]
+                ]
+            ).float()
+
+    def __len__(self) -> int:
+        return self.dataset_size
+
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            An Attribute named tuple at the given index.
+        """
+        label = self.labels[index]
+        unpaired = self.unpaired[index] if self.unpaired is not None else None
+        item = Cat(
+            category=label[0].long(),
         )
 
         if self.transform is not None:
@@ -375,6 +560,8 @@ DEFAULT_DOMAINS: dict[str, type[DataDomain]] = {
     "attr": SimpleShapesAttributes,
     "raw_text": SimpleShapesRawText,
     "t": SimpleShapesText,
+    "cat": SimpleShapesCat,
+    "color": SimpleShapesColor,
 }
 
 
