@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import torch
 import torch.nn.functional as F
 
-from simple_shapes_dataset.domain import Attribute, Cat, Color, Text
+from simple_shapes_dataset.domain import Attribute, Cat, Color, Position, Text
 from simple_shapes_dataset.text import composer
 from simple_shapes_dataset.text.utils import (
     choices_from_structure_categories,
@@ -33,6 +33,26 @@ class NormalizeAttributes:
             color_g=(attr.color_g) * 2 - 1,
             color_b=(attr.color_b) * 2 - 1,
             unpaired=attr.unpaired,
+        )
+
+
+class NormalizePosition:
+    def __init__(self, min_size: int = 7, max_size: int = 14, image_size: int = 32):
+        self.min_size = min_size
+        self.max_size = max_size
+        self.scale_size = self.max_size - self.min_size
+
+        self.image_size = image_size
+        self.min_position = self.max_size // 2
+        self.max_position = self.image_size - self.min_position
+        self.scale_position = self.max_position - self.min_position
+
+    def __call__(self, pos: Position) -> Position:
+        return Position(
+            x=((pos.x - self.min_position) / self.scale_position) * 2 - 1,
+            y=((pos.y - self.min_position) / self.scale_position) * 2 - 1,
+            size=((pos.size - self.min_size) / self.scale_size) * 2 - 1,
+            rotation=pos.rotation,
         )
 
 
@@ -93,6 +113,17 @@ def color_to_tensor(color: Color) -> list[torch.Tensor]:
     tensors = torch.cat([color.color_r.unsqueeze(0),
                 color.color_g.unsqueeze(0),
                 color.color_b.unsqueeze(0),])
+
+    return tensors
+
+def position_to_tensor(position: Position) -> list[torch.Tensor]:
+    tensors = torch.cat([
+                position.x.unsqueeze(0),
+                position.y.unsqueeze(0),
+                position.size.unsqueeze(0),
+                position.rotation.cos().unsqueeze(0),
+                position.rotation.sin().unsqueeze(0),
+                ])
 
     return tensors
 
