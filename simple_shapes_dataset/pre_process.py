@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import torch
 import torch.nn.functional as F
 
-from simple_shapes_dataset.domain import Attribute, Cat, Color, Position, Text
+from simple_shapes_dataset.domain import Attribute, Cat, Color, Position, PositionColor, Text
 from simple_shapes_dataset.text import composer
 from simple_shapes_dataset.text.utils import (
     choices_from_structure_categories,
@@ -54,7 +54,28 @@ class NormalizePosition:
             size=((pos.size - self.min_size) / self.scale_size) * 2 - 1,
             rotation=pos.rotation,
         )
+    
+class NormalizePositionColor:
+    def __init__(self, min_size: int = 7, max_size: int = 14, image_size: int = 32):
+        self.min_size = min_size
+        self.max_size = max_size
+        self.scale_size = self.max_size - self.min_size
 
+        self.image_size = image_size
+        self.min_position = self.max_size // 2
+        self.max_position = self.image_size - self.min_position
+        self.scale_position = self.max_position - self.min_position
+
+    def __call__(self, pos: PositionColor) -> PositionColor:
+        return PositionColor(
+            x=((pos.x - self.min_position) / self.scale_position) * 2 - 1,
+            y=((pos.y - self.min_position) / self.scale_position) * 2 - 1,
+            size=((pos.size - self.min_size) / self.scale_size) * 2 - 1,
+            rotation=pos.rotation,
+            color_r=(pos.color_r) * 2 - 1,
+            color_g=(pos.color_g) * 2 - 1,
+            color_b=(pos.color_b) * 2 - 1,
+        )
 
 def to_unit_range(x: torch.Tensor) -> torch.Tensor:
     return (x + 1) / 2
@@ -123,6 +144,20 @@ def position_to_tensor(position: Position) -> list[torch.Tensor]:
                 position.size.unsqueeze(0),
                 position.rotation.cos().unsqueeze(0),
                 position.rotation.sin().unsqueeze(0),
+                ])
+
+    return tensors
+
+def positioncolor_to_tensor(position: PositionColor) -> list[torch.Tensor]:
+    tensors = torch.cat([
+                position.x.unsqueeze(0),
+                position.y.unsqueeze(0),
+                position.size.unsqueeze(0),
+                position.rotation.cos().unsqueeze(0),
+                position.rotation.sin().unsqueeze(0),
+                position.color_r.unsqueeze(0),
+                position.color_g.unsqueeze(0),
+                position.color_b.unsqueeze(0)
                 ])
 
     return tensors

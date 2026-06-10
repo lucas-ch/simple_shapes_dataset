@@ -11,7 +11,7 @@ from torchvision.transforms import Compose, ToTensor
 from simple_shapes_dataset.dataset import RepeatedDataset, SimpleShapesDataset
 from simple_shapes_dataset.domain import DataDomain, DomainDesc
 from simple_shapes_dataset.domain_alignment import get_aligned_datasets
-from simple_shapes_dataset.pre_process import NormalizeAttributes, NormalizePosition, attribute_to_tensor, cat_to_tensor, color_to_tensor, position_to_tensor
+from simple_shapes_dataset.pre_process import NormalizeAttributes, NormalizePosition, NormalizePositionColor, attribute_to_tensor, cat_to_tensor, color_to_tensor, position_to_tensor, positioncolor_to_tensor
 
 DatasetT = SimpleShapesDataset | Subset
 
@@ -149,6 +149,14 @@ class SimpleShapesDataModule(LightningDataModule):
                     [
                         NormalizePosition(image_size=32),
                         position_to_tensor,
+                    ]
+                )
+
+            if domain == "positioncolor" and self._use_default_transforms:
+                domain_transforms.extend(
+                    [
+                        NormalizePositionColor(image_size=32),
+                        positioncolor_to_tensor,
                     ]
                 )
 
