@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import torch
 import torch.nn.functional as F
 
-from simple_shapes_dataset.domain import Attribute, Cat, Color, Position, PositionColor, Text
+from simple_shapes_dataset.domain import Action, Attribute, Cat, Color, Position, PositionColor, Task, Text
 from simple_shapes_dataset.text import composer
 from simple_shapes_dataset.text.utils import (
     choices_from_structure_categories,
@@ -128,6 +128,14 @@ def attribute_to_tensor(attr: Attribute) -> list[torch.Tensor]:
 
 def cat_to_tensor(cat: Cat) -> list[torch.Tensor]:
     tensors = F.one_hot(cat.category, num_classes=3).to(torch.float)
+    return tensors
+
+def action_to_tensor(action: Action) -> list[torch.Tensor]:
+    tensors = F.one_hot(action.action, num_classes=3).to(torch.float)
+    return tensors
+
+def task_to_tensor(task: Task) -> list[torch.Tensor]:
+    tensors = F.one_hot(task.question.to(torch.long), num_classes=3).to(torch.float)
     return tensors
 
 def color_to_tensor(color: Color) -> list[torch.Tensor]:

@@ -96,10 +96,7 @@ class SimpleShapesDataset(Dataset):
             )
         self.dataset_size = min_length
         if self.max_size is not None:
-            assert (
-                self.max_size <= self.dataset_size
-            ), "Max sizes can only be lower than actual size."
-            self.dataset_size = self.max_size
+            self.dataset_size = min(self.max_size, self.dataset_size)
 
     def __len__(self) -> int:
         """

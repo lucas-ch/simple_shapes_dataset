@@ -35,6 +35,8 @@ class DomainType(Enum):
     color = DomainDesc("color", "color")
     position = DomainDesc("position", "position")
     positioncolor = DomainDesc("positioncolor", "positioncolor")
+    action = DomainDesc("action", "action")
+    task = DomainDesc("task", "task")
 
 
 # TODO: Consider handling CPU usage
@@ -188,6 +190,23 @@ class Cat(NamedTuple):
     """
 
     category: torch.Tensor
+
+class Action(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+
+    action: torch.Tensor
+
+class Task(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+
+    question: torch.Tensor
+    answer: torch.Tensor
 
 class Color(NamedTuple):
     """
@@ -522,6 +541,61 @@ class SimpleShapesCat(DataDomain):
             return self.transform(item)
         return item
 
+class SimpleShapesAction(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return 0
+
+    def __getitem__(self, index: int):
+        item = Action(action=torch.tensor(0, dtype=torch.long))
+
+        if self.transform is not None:
+            return self.transform(item)
+
+        return item
+
+class SimpleShapesTask(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        assert split in ("train", "val", "test"), "Invalid split"
+
+        self.dataset_path = Path(dataset_path).resolve()
+        self.split = split
+        self.tasks: torch.Tensor = torch.from_numpy(
+            np.load(self.dataset_path / f"{split}_tasks.npy")
+        )
+        self.transform = transform
+
+        self.dataset_size = self.tasks.size(0)
+
+    def __len__(self) -> int:
+        return 0
+
+    def __getitem__(self, index: int):
+        task = self.tasks[index]
+
+        item = Task(
+            question=task[0],
+            answer=task[1]
+        )
+
+        if self.transform is not None:
+            return self.transform(item)
+
+        return item
 
 class Choice(NamedTuple):
     structure: int
@@ -642,6 +716,8 @@ DEFAULT_DOMAINS: dict[str, type[DataDomain]] = {
     "color": SimpleShapesColor,
     "position": SimpleShapesPosition,
     "positioncolor": SimpleShapesPositionColor,
+    "action": SimpleShapesAction,
+    "task": SimpleShapesTask
 }
 
 
