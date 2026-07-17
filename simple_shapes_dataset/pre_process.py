@@ -35,6 +35,16 @@ class NormalizeAttributes:
             unpaired=attr.unpaired,
         )
 
+class NormalizeColor:
+    def __init__(self):
+        pass
+
+    def __call__(self, color: Color) -> Color:
+        return Color(
+            color_r=(color.color_r) * 2 - 1,
+            color_g=(color.color_g) * 2 - 1,
+            color_b=(color.color_b) * 2 - 1,
+        )
 
 class NormalizePosition:
     def __init__(self, min_size: int = 7, max_size: int = 14, image_size: int = 32):

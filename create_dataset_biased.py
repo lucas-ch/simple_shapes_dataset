@@ -43,12 +43,21 @@ color_given_class_3 = {
     2: [0.2,  0.7,  0.1],  # triangle
 }
 
+
+color_given_class_full = {
+    #  vert   rouge  bleu
+    0: [0,  0,  1],  # diamant
+    1: [1,  0, 0],  # oeuf
+    2: [0,  1,  0],  # triangle
+}
+
+
 create_dataset_biased(
     seed= 0,
     max_train_size = None,
     domain_alignment= [],
     img_size=32,
-    output_path=Path('/home/lucas/gwsyn/simple_shapes_dataset_form_50_35_15_cgc_2_20'),
+    output_path=Path('/home/lucas/gwsyn/simple_shapes_dataset_biased10'),
     num_train_examples=500000,
     num_val_examples=1000,
     num_test_examples=1000,
@@ -57,8 +66,7 @@ create_dataset_biased(
     min_lightness=46,
     max_lightness=256,
     biased=True,
-    color_given_class=color_given_class_2,
-    fixed_color_rate=0.2,
+    fixed_color_rate=0.1,
+    color_given_class = color_given_class_full,
     class_configs = class_configs,
-    weights_class = [0.50, 0.35, 0.15],
 )
