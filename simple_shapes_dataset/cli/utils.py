@@ -150,22 +150,44 @@ def generate_scale(n_samples: int, min_val: int, max_val: int) -> np.ndarray:
     assert max_val > min_val
     return np.random.randint(min_val, max_val + 1, n_samples)
 
-
 def generate_color(
-    n_samples: int, min_lightness: int = 0, max_lightness: int = 256
+    n_samples: int,
+    min_lightness: int = 0,
+    max_lightness: int = 256,
+    weights: list[float] | None = None,
+    p: float = 0.25,
 ) -> tuple[np.ndarray, np.ndarray]:
     import cv2
-
     assert 0 <= max_lightness <= 256
+    assert 0.0 <= p <= 1.0, "p must be between 0 and 1"
+
+    if weights is not None:
+        assert len(weights) == 3, "weights must have exactly 3 elements"
+        assert abs(sum(weights) - 1.0) < 1e-6, "weights must sum to 1"
+
+    fixed_colors = [
+        np.array([0, 128, 255]),
+        np.array([60, 128, 255]),
+        np.array([120, 128, 255]),
+    ]
+
+    # Generate all colors randomly first
     hls = np.random.randint(
         [0, min_lightness, 0],
         [181, max_lightness, 256],
-        size=(1, n_samples, 3),
+        size=(n_samples, 3),
         dtype=np.uint8,
     )
-    rgb = cv2.cvtColor(hls, cv2.COLOR_HLS2RGB)[0]  # type: ignore
-    return rgb.astype(int), hls[0].astype(int)
 
+    if weights is not None and p > 0.0:
+        n_fixed = int(round(n_samples * p))
+        fixed_indices = np.random.choice(n_samples, size=n_fixed, replace=False)
+        choices = np.random.choice(3, size=n_fixed, p=weights)
+        hls[fixed_indices] = np.array([fixed_colors[c] for c in choices], dtype=np.uint8)
+
+    hls_reshaped = hls.reshape(1, n_samples, 3)
+    rgb = cv2.cvtColor(hls_reshaped, cv2.COLOR_HLS2RGB)[0]
+    return rgb.astype(int), hls.astype(int)
 
 def generate_rotation(n_samples: int) -> np.ndarray:
     rotations = np.random.rand(n_samples) * 2 * np.pi
@@ -179,8 +201,20 @@ def generate_location(n_samples: int, max_scale: int, imsize: int) -> np.ndarray
     return locations
 
 
-def generate_class(n_samples: int) -> np.ndarray:
-    return np.random.randint(3, size=n_samples)
+def generate_class(n_samples: int, weights: list[float] | None = None) -> np.ndarray:
+    """
+    Generate random classes with optional class weights.
+    
+    Args:
+        n_samples: Number of samples to generate
+        weights: List of probabilities for each class (must sum to 1).
+                 If None, uniform distribution is used.
+    
+    Example:
+        generate_class(1000, weights=[0.8, 0.1, 0.1])  # 80% 0s, 10% 1s, 10% 2s
+    """
+    n_classes = len(weights) if weights is not None else 3
+    return np.random.choice(n_classes, size=n_samples, p=weights)
 
 
 def generate_unpaired_attr(n_samples: int) -> np.ndarray:
@@ -214,42 +248,67 @@ def generate_dataset(
     )
 
 def generate_dataset_biased(
-    n_samples: int,  # Ex: {0: 100, 1: 200}
-    class_configs: dict,                # Ex: {0: {'bias_rate': 0.8, 'fixed_color_hls': np.array([0,128,255])}}
+    n_samples: int,
+    class_configs: dict,
     min_scale: int,
     max_scale: int,
     min_lightness: int,
     max_lightness: int,
     imsize: int,
     classes: np.ndarray | None = None,
+    weights_class: list[float] | None = None,
+    weights_color: list[float] | None = None,
+    # Taux global de formes avec couleur fixe (ex: 0.3 = 30%)
+    fixed_color_rate: float = 0.0,
+    # P(couleur | classe) — ordre des couleurs = ordre des clés de class_configs
+    # Ex: {0: [0.5, 0.3, 0.2], 1: [0.2, 0.6, 0.2], 2: [0.1, 0.2, 0.7]}
+    color_given_class: dict[int, list[float]] | None = None,
 ) -> Dataset:
+    import cv2
+
+    # 1. Générer les classes
     if classes is None:
-        classes = generate_class(n_samples)
+        classes = generate_class(n_samples, weights_class)
 
-    colors_rgb, colors_hls = generate_color(n_samples, min_lightness, max_lightness)
+    # 2. Générer toutes les couleurs aléatoirement (point de départ)
+    colors_rgb, colors_hls = generate_color(
+        n_samples, min_lightness, max_lightness, weights_color
+    )
 
-    for cls_id, config in class_configs.items():
-        bias_rate = config.get('bias_rate')
-        fixed_hls = config.get('fixed_color_hls')
+    # 3. Appliquer les couleurs fixes
+    if color_given_class is not None and fixed_color_rate > 0.0:
+        # Récupérer les couleurs fixes dans l'ordre des clés de class_configs
+        fixed_colors = [
+            config['fixed_color_hls']
+            for config in class_configs.values()
+            if config.get('fixed_color_hls') is not None
+        ]
 
-        if fixed_hls is not None and bias_rate > 0:
-            indices = np.where(classes == cls_id)[0]
-            
-            mask = np.random.rand(len(indices)) < bias_rate
-            chosen_indices = indices[mask]
+        # Tirage global : quelles formes auront une couleur fixe ?
+        has_fixed_color = np.random.rand(n_samples) < fixed_color_rate  # shape (n,) bool
 
-            colors_hls[chosen_indices] = fixed_hls.astype(int)
-            
-            if len(chosen_indices) > 0:
+        for cls_id, color_probs in color_given_class.items():
+            # Formes de cette classe ET qui ont tiré une couleur fixe
+            indices = np.where((classes == cls_id) & has_fixed_color)[0]
+            if len(indices) == 0:
+                continue
+
+            # Choisir quelle couleur fixe pour chacune
+            chosen_color_ids = np.random.choice(
+                len(fixed_colors), size=len(indices), p=color_probs
+            )
+
+            for i, idx in enumerate(indices):
+                fixed_hls = fixed_colors[chosen_color_ids[i]]
+                colors_hls[idx] = fixed_hls.astype(int)
                 patch_hls = fixed_hls.reshape(1, 1, 3).astype(np.uint8)
                 patch_rgb = cv2.cvtColor(patch_hls, cv2.COLOR_HLS2RGB)[0, 0]
-                colors_rgb[chosen_indices] = patch_rgb.astype(int)
+                colors_rgb[idx] = patch_rgb.astype(int)
 
     sizes = generate_scale(n_samples, min_scale, max_scale)
     locations = generate_location(n_samples, max_scale, imsize)
     rotation = generate_rotation(n_samples)
     unpaired = generate_unpaired_attr(n_samples)
-
     shuffled_indices = np.random.permutation(n_samples)
 
     return Dataset(
@@ -261,9 +320,6 @@ def generate_dataset_biased(
         colors_hls=colors_hls[shuffled_indices],
         unpaired=unpaired[shuffled_indices],
     )
-
-
-
 
 def save_dataset(path_root: Path, dataset: Dataset, imsize: int) -> None:
     dpi = 1

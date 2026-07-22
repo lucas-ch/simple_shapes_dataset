@@ -233,7 +233,10 @@ def create_dataset_biased(
     max_train_size: int | None,
     domain_alignment: list[tuple[str, float]],
     biased: bool = False,
-    class_configs: dict = None
+    class_configs: dict = None,
+    weights_class: list[float] | None = None,
+    fixed_color_rate: float = 0.0,
+    color_given_class: dict[int, list[float]] | None = None,
 ) -> None:
     dataset_location = Path(output_path)
     dataset_location.mkdir(exist_ok=True)
@@ -249,6 +252,9 @@ def create_dataset_biased(
             min_lightness,
             max_lightness,
             img_size,
+            weights_class=weights_class,
+            fixed_color_rate = fixed_color_rate,
+            color_given_class=color_given_class
         )
         val_labels = generate_dataset_biased(
             num_val_examples,
@@ -258,6 +264,9 @@ def create_dataset_biased(
             min_lightness,
             max_lightness,
             img_size,
+            weights_class=weights_class,
+            fixed_color_rate = fixed_color_rate,
+            color_given_class=color_given_class
         )
 
     else: 

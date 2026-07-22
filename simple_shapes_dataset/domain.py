@@ -33,6 +33,10 @@ class DomainType(Enum):
     t = DomainDesc("t", "t")  # loads BERT representations of the raw text
     cat = DomainDesc("cat", "cat")
     color = DomainDesc("color", "color")
+    position = DomainDesc("position", "position")
+    positioncolor = DomainDesc("positioncolor", "positioncolor")
+    action = DomainDesc("action", "action")
+    task = DomainDesc("task", "task")
 
 
 # TODO: Consider handling CPU usage
@@ -187,12 +191,52 @@ class Cat(NamedTuple):
 
     category: torch.Tensor
 
+class Action(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+
+    action: torch.Tensor
+
+class Task(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+
+    question: torch.Tensor
+    answer: torch.Tensor
+
 class Color(NamedTuple):
     """
     NamedTuple for the attributes of the SimpleShapesDataset.
     NamedTuples are used as they are correcly handled by pytorch's collate function.
     """
 
+    color_r: torch.Tensor
+    color_g: torch.Tensor
+    color_b: torch.Tensor
+
+class Position(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+    x: torch.Tensor
+    y: torch.Tensor
+    size: torch.Tensor
+    rotation: torch.Tensor
+
+class PositionColor(NamedTuple):
+    """
+    NamedTuple for the attributes of the SimpleShapesDataset.
+    NamedTuples are used as they are correcly handled by pytorch's collate function.
+    """
+    x: torch.Tensor
+    y: torch.Tensor
+    size: torch.Tensor
+    rotation: torch.Tensor
     color_r: torch.Tensor
     color_g: torch.Tensor
     color_b: torch.Tensor
@@ -217,66 +261,6 @@ class Attribute(NamedTuple):
 class AttributesAdditionalArgs(TypedDict):
     n_unpaired: int
 
-
-class SimpleShapesAttributes(DataDomain):
-    def __init__(
-        self,
-        dataset_path: str | Path,
-        split: str,
-        transform: Callable[[Attribute], Any] | None = None,
-        additional_args: AttributesAdditionalArgs | None = None,
-    ) -> None:
-        assert split in ("train", "val", "test"), "Invalid split"
-
-        self.dataset_path = Path(dataset_path).resolve()
-        self.split = split
-        self.labels: torch.Tensor = torch.from_numpy(
-            np.load(self.dataset_path / f"{split}_labels.npy")
-        )
-        self.transform = transform
-
-        default_args = AttributesAdditionalArgs(n_unpaired=0)
-        self.additional_args = additional_args or default_args
-        self.dataset_size = self.labels.size(0)
-
-        self.unpaired = None
-        if self.additional_args["n_unpaired"] >= 1:
-            if not (self.dataset_path / f"{split}_unpaired.npy").exists():
-                raise ValueError(
-                    "Asking for an unpaired attribute, "
-                    "but there is no unpaired label file."
-                )
-            self.unpaired = torch.from_numpy(
-                np.load(self.dataset_path / f"{split}_unpaired.npy")[
-                    :, 2 : 2 + self.additional_args["n_unpaired"]
-                ]
-            ).float()
-
-    def __len__(self) -> int:
-        return self.dataset_size
-
-    def __getitem__(self, index: int):
-        """
-        Returns:
-            An Attribute named tuple at the given index.
-        """
-        label = self.labels[index]
-        unpaired = self.unpaired[index] if self.unpaired is not None else None
-        item = Attribute(
-            category=label[0].long(),
-            x=label[1],
-            y=label[2],
-            size=label[3],
-            rotation=label[4],
-            color_r=label[5] / 255,
-            color_g=label[6] / 255,
-            color_b=label[7] / 255,
-            unpaired=unpaired,
-        )
-
-        if self.transform is not None:
-            return self.transform(item)
-        return item
 
 class SimpleShapesAttributes(DataDomain):
     def __init__(
@@ -392,6 +376,119 @@ class SimpleShapesColor(DataDomain):
             return self.transform(item)
         return item
 
+class SimpleShapesPosition(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        assert split in ("train", "val", "test"), "Invalid split"
+
+        self.dataset_path = Path(dataset_path).resolve()
+        self.split = split
+        self.labels: torch.Tensor = torch.from_numpy(
+            np.load(self.dataset_path / f"{split}_labels.npy")
+        )
+        self.transform = transform
+
+        default_args = AttributesAdditionalArgs(n_unpaired=0)
+        self.additional_args = additional_args or default_args
+        self.dataset_size = self.labels.size(0)
+
+        self.unpaired = None
+        if self.additional_args["n_unpaired"] >= 1:
+            if not (self.dataset_path / f"{split}_unpaired.npy").exists():
+                raise ValueError(
+                    "Asking for an unpaired attribute, "
+                    "but there is no unpaired label file."
+                )
+            self.unpaired = torch.from_numpy(
+                np.load(self.dataset_path / f"{split}_unpaired.npy")[
+                    :, 2 : 2 + self.additional_args["n_unpaired"]
+                ]
+            ).float()
+
+    def __len__(self) -> int:
+        return self.dataset_size
+
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            An Attribute named tuple at the given index.
+        """
+        label = self.labels[index]
+        unpaired = self.unpaired[index] if self.unpaired is not None else None
+        item = Position(
+            x=label[1],
+            y=label[2],
+            size=label[3],
+            rotation=label[4],
+        )
+
+        if self.transform is not None:
+            return self.transform(item)
+        return item
+
+class SimpleShapesPositionColor(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        assert split in ("train", "val", "test"), "Invalid split"
+
+        self.dataset_path = Path(dataset_path).resolve()
+        self.split = split
+        self.labels: torch.Tensor = torch.from_numpy(
+            np.load(self.dataset_path / f"{split}_labels.npy")
+        )
+        self.transform = transform
+
+        default_args = AttributesAdditionalArgs(n_unpaired=0)
+        self.additional_args = additional_args or default_args
+        self.dataset_size = self.labels.size(0)
+
+        self.unpaired = None
+        if self.additional_args["n_unpaired"] >= 1:
+            if not (self.dataset_path / f"{split}_unpaired.npy").exists():
+                raise ValueError(
+                    "Asking for an unpaired attribute, "
+                    "but there is no unpaired label file."
+                )
+            self.unpaired = torch.from_numpy(
+                np.load(self.dataset_path / f"{split}_unpaired.npy")[
+                    :, 2 : 2 + self.additional_args["n_unpaired"]
+                ]
+            ).float()
+
+    def __len__(self) -> int:
+        return self.dataset_size
+
+    def __getitem__(self, index: int):
+        """
+        Returns:
+            An Attribute named tuple at the given index.
+        """
+        label = self.labels[index]
+        unpaired = self.unpaired[index] if self.unpaired is not None else None
+        item = PositionColor(
+            x=label[1],
+            y=label[2],
+            size=label[3],
+            rotation=label[4],
+            color_r=label[5] / 255,
+            color_g=label[6] / 255,
+            color_b=label[7] / 255,
+        )
+
+        if self.transform is not None:
+            return self.transform(item)
+        return item
+
 class SimpleShapesCat(DataDomain):
     def __init__(
         self,
@@ -444,6 +541,61 @@ class SimpleShapesCat(DataDomain):
             return self.transform(item)
         return item
 
+class SimpleShapesAction(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        self.transform = transform
+
+    def __len__(self) -> int:
+        return 0
+
+    def __getitem__(self, index: int):
+        item = Action(action=torch.tensor(0, dtype=torch.long))
+
+        if self.transform is not None:
+            return self.transform(item)
+
+        return item
+
+class SimpleShapesTask(DataDomain):
+    def __init__(
+        self,
+        dataset_path: str | Path,
+        split: str,
+        transform: Callable[[Attribute], Any] | None = None,
+        additional_args: AttributesAdditionalArgs | None = None,
+    ) -> None:
+        assert split in ("train", "val", "test"), "Invalid split"
+
+        self.dataset_path = Path(dataset_path).resolve()
+        self.split = split
+        self.tasks: torch.Tensor = torch.from_numpy(
+            np.load(self.dataset_path / f"{split}_tasks.npy")
+        )
+        self.transform = transform
+
+        self.dataset_size = self.tasks.size(0)
+
+    def __len__(self) -> int:
+        return 0
+
+    def __getitem__(self, index: int):
+        task = self.tasks[index]
+
+        item = Task(
+            question=task[0],
+            answer=task[1]
+        )
+
+        if self.transform is not None:
+            return self.transform(item)
+
+        return item
 
 class Choice(NamedTuple):
     structure: int
@@ -562,6 +714,10 @@ DEFAULT_DOMAINS: dict[str, type[DataDomain]] = {
     "t": SimpleShapesText,
     "cat": SimpleShapesCat,
     "color": SimpleShapesColor,
+    "position": SimpleShapesPosition,
+    "positioncolor": SimpleShapesPositionColor,
+    "action": SimpleShapesAction,
+    "task": SimpleShapesTask
 }
 
 
