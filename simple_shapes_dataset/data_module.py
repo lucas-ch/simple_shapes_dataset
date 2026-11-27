@@ -140,7 +140,6 @@ class SimpleShapesDataModule(LightningDataModule):
             if domain == "color" and self._use_default_transforms:
                 domain_transforms.extend(
                     [
-                        NormalizeColor(),
                         color_to_tensor,
                     ]
                 )
