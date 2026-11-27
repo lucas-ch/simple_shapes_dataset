@@ -39,7 +39,7 @@ def create_domain_split(
     for split in ["train", "val", "test"]:
         labels = np.load(str(dataset_path / f"{split}_labels.npy"))
         allowed_indices = np.arange(labels.shape[0])
-        if split == "train":
+        if split == "train" or labels.shape[0] > max_train_size:
             allowed_indices = allowed_indices[:max_train_size]
         split_name = get_deterministic_name(domain_sets, seed, allowed_indices.shape[0])
         domain_split = get_domain_alignment(

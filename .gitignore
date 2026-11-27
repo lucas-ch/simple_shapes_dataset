@@ -169,3 +169,4 @@ data/
 wandb/
 config/local/
 config/local.yaml
+test_data/

@@ -24,6 +24,9 @@ def get_alignment(
         max_size = np.load(dataset_path / f"{split}_labels.npy").shape[0]
     assert max_size is not None, "Error loading label file."
 
+    dataset_size= np.load(dataset_path / f"{split}_labels.npy").shape[0]
+    max_size = min(dataset_size, max_size)
+
     alignment_split_name = get_deterministic_name(domain_proportions, seed, max_size)
 
     alignment_split_path = (
@@ -62,6 +65,11 @@ def get_aligned_datasets(
     domain_split = get_alignment(
         dataset_path, split, domain_proportions, seed, max_size
     )
+
+    if max_size is not None:
+        dataset_size= np.load(dataset_path / f"{split}_labels.npy").shape[0]
+        max_size = min(dataset_size, max_size)
+
 
     datasets: dict[frozenset[str], Subset] = {}
     for domain_group, indices in domain_split.items():
